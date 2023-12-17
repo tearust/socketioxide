@@ -11,7 +11,7 @@
 //! # use socketioxide::SocketIo;
 //! # use serde_json::Error;
 //! # use socketioxide::extract::*;
-//! let (svc, io) = SocketIo::new_svc();
+//! let (svc, io) = SocketIo::new_svc(None);
 //! // Here the handler is sync,
 //! // if there is a serialization error, the handler is not called
 //! io.ns("/nsp", move |s: SocketRef, Data(auth): Data<String>| {
@@ -24,7 +24,7 @@
 //! # use socketioxide::SocketIo;
 //! # use serde_json::Error;
 //! # use socketioxide::extract::*;
-//! let (svc, io) = SocketIo::new_svc();
+//! let (svc, io) = SocketIo::new_svc(None);
 //! // Here the handler is async and extract the current socket and the auth payload
 //! io.ns("/", move |s: SocketRef, TryData(auth): TryData<String>| async move {
 //!     println!("Socket connected on / namespace with id and auth data: {} {:?}", s.id, auth);
@@ -46,7 +46,7 @@
 //!     println!("Socket connected on {} namespace with id and auth data: {} {:?}", s.ns(), s.id, auth);
 //! }
 //!
-//! let (svc, io) = SocketIo::new_svc();
+//! let (svc, io) = SocketIo::new_svc(None);
 //!
 //! // You can reuse the same handler for multiple namespaces
 //! io.ns("/", handler);

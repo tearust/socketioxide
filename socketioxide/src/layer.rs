@@ -5,7 +5,7 @@
 //! # use socketioxide::SocketIo;
 //! # use axum::routing::get;
 //! // Create a socket.io layer
-//! let (layer, io) = SocketIo::new_layer();
+//! let (layer, io) = SocketIo::new_layer(None);
 //!
 //! // Add io namespaces and events...
 //!
@@ -27,7 +27,7 @@
 //!     "Hello World"
 //! }
 //!  // Create a socket.io layer
-//! let (layer, io) = SocketIo::new_layer();
+//! let (layer, io) = SocketIo::new_layer(None);
 //!
 //! // Add io namespaces and events...
 //!
@@ -42,6 +42,7 @@ use tower::Layer;
 use crate::{
     adapter::{Adapter, LocalAdapter},
     client::Client,
+    handler::message::MessageSender,
     service::SocketIoService,
     SocketIoConfig,
 };
@@ -60,8 +61,11 @@ impl<A: Adapter> Clone for SocketIoLayer<A> {
 }
 
 impl<A: Adapter> SocketIoLayer<A> {
-    pub(crate) fn from_config(config: Arc<SocketIoConfig>) -> (Self, Arc<Client<A>>) {
-        let client = Arc::new(Client::new(config.clone()));
+    pub(crate) fn from_config(
+        config: Arc<SocketIoConfig>,
+        message_sender: Option<MessageSender<A>>,
+    ) -> (Self, Arc<Client<A>>) {
+        let client = Arc::new(Client::new(config.clone(), message_sender));
         let layer = Self {
             client: client.clone(),
         };

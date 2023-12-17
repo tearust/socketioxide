@@ -22,6 +22,9 @@ pub enum Error {
 
     #[error("adapter error: {0}")]
     Adapter(#[from] AdapterError),
+
+    #[error("error sending message through channel: {0}")]
+    MessageSendFailed(String),
 }
 
 /// Convert an [`Error`] to an [`EIoDisconnectReason`] if possible
@@ -37,6 +40,7 @@ impl From<&Error> for Option<EIoDisconnectReason> {
                 Some(PacketParsingError)
             }
             Error::Adapter(_) | Error::InvalidNamespace => None,
+            Error::MessageSendFailed(_) => Some(RelayError),
         }
     }
 }

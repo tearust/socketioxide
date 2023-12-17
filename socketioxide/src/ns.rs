@@ -7,7 +7,7 @@ use std::{
 use crate::{
     adapter::Adapter,
     errors::Error,
-    handler::{BoxedConnectHandler, ConnectHandler, MakeErasedHandler},
+    handler::{message::MessageSender, BoxedConnectHandler, ConnectHandler, MakeErasedHandler},
     packet::{Packet, PacketData},
     socket::Socket,
     SocketIoConfig,
@@ -43,8 +43,10 @@ impl<A: Adapter> Namespace<A> {
         esocket: Arc<engineioxide::Socket<SocketData>>,
         auth: Option<String>,
         config: Arc<SocketIoConfig>,
+        message_sender: Option<MessageSender<A>>,
     ) -> Result<(), serde_json::Error> {
-        let socket: Arc<Socket<A>> = Socket::new(sid, self.clone(), esocket.clone(), config).into();
+        let socket: Arc<Socket<A>> =
+            Socket::new(sid, self.clone(), esocket.clone(), config, message_sender).into();
 
         self.sockets.write().unwrap().insert(sid, socket.clone());
 

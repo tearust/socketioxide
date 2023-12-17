@@ -70,35 +70,6 @@
 //! ## Usage
 //! The API tries to mimic the equivalent JS API as much as possible. The main difference is that the default namespace `/` is not created automatically, you need to create it manually.
 //!
-//! #### Basic example with axum:
-//! ```no_run
-//! use axum::routing::get;
-//! use socketioxide::{
-//!     extract::SocketRef,
-//!     SocketIo,
-//! };
-//! #[tokio::main]
-//! async fn main() -> Result<(), Box<dyn std::error::Error>> {
-//!     let (layer, io) = SocketIo::new_layer();
-//!
-//!     // Register a handler for the default namespace
-//!     io.ns("/", |s: SocketRef| {
-//!         // For each "message" event received, send a "message-back" event with the "Hello World!" event
-//!         s.on("message", |s: SocketRef| {
-//!             s.emit("message-back", "Hello World!").ok();
-//!         });
-//!     });
-//!
-//!     let app = axum::Router::new()
-//!     .route("/", get(|| async { "Hello, World!" }))
-//!     .layer(layer);
-//!
-//!     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
-//!     axum::serve(listener, app).await.unwrap();
-//!
-//!     Ok(())
-//! }
-//! ```
 //! ## Initialisation
 //! The [`SocketIo`] struct is the main entry point of the library. It is used to create a [`Layer`](tower::layer) or a [`Service`](tower::Service).
 //! Later it can be used as the equivalent of the `io` object in the JS API.
@@ -114,13 +85,13 @@
 //! let (layer, io) = SocketIo::builder()
 //!     .max_payload(10_000_000) // Max HTTP payload size of 10M
 //!     .max_buffer_size(10_000) // Max number of packets in the buffer
-//!     .build_layer();
+//!     .build_layer(None);
 //! ```
 //!
 //! #### Tower _standalone_ service example with default configuration:
 //! ```
 //! use socketioxide::SocketIo;
-//! let (svc, io) = SocketIo::new_svc();
+//! let (svc, io) = SocketIo::new_svc(None);
 //! ```
 //!
 //! ## Handlers

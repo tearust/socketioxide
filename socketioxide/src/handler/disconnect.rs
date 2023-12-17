@@ -12,7 +12,7 @@
 //! # use serde_json::Error;
 //! # use socketioxide::extract::*;
 //! # use socketioxide::socket::DisconnectReason;
-//! let (svc, io) = SocketIo::new_svc();
+//! let (svc, io) = SocketIo::new_svc(None);
 //! io.ns("/", |s: SocketRef| {
 //!     s.on_disconnect(|s: SocketRef, reason: DisconnectReason| {
 //!         println!("Socket {} was disconnected because {} ", s.id, reason);
@@ -25,7 +25,7 @@
 //! # use socketioxide::SocketIo;
 //! # use serde_json::Error;
 //! # use socketioxide::extract::*;
-//! let (svc, io) = SocketIo::new_svc();
+//! let (svc, io) = SocketIo::new_svc(None);
 //! io.ns("/", |s: SocketRef| {
 //!     s.on_disconnect(move |s: SocketRef| async move {
 //!         println!("Socket {} was disconnected", s.id);
@@ -44,7 +44,7 @@
 //!     println!("Socket disconnected on {} namespace with id and reason: {} {}", s.ns(), s.id, reason);
 //! }
 //!
-//! let (svc, io) = SocketIo::new_svc();
+//! let (svc, io) = SocketIo::new_svc(None);
 //!
 //! // You can reuse the same handler for multiple sockets
 //! io.ns("/", |s: SocketRef| {

@@ -9,7 +9,7 @@
 //!
 //! #[tokio::main]
 //! async fn main() {
-//!     let (svc, io) = SocketIo::new_svc();
+//!     let (svc, io) = SocketIo::new_svc(None);
 //!
 //!      // Add io namespaces and events...
 //!
@@ -54,6 +54,7 @@ use tower::Service as TowerSvc;
 use crate::{
     adapter::{Adapter, LocalAdapter},
     client::Client,
+    handler::message::MessageSender,
     SocketIoConfig,
 };
 
@@ -113,9 +114,10 @@ impl<A: Adapter, S: Clone> SocketIoService<S, A> {
     pub(crate) fn with_config_inner(
         inner: S,
         config: Arc<SocketIoConfig>,
+        message_sender: Option<MessageSender<A>>,
     ) -> (Self, Arc<Client<A>>) {
         let engine_config = config.engine_config.clone();
-        let client = Arc::new(Client::new(config));
+        let client = Arc::new(Client::new(config, message_sender));
         let svc = EngineIoService::with_config_inner(inner, client.clone(), engine_config);
         (Self { engine_svc: svc }, client)
     }

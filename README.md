@@ -154,7 +154,7 @@ fn on_connect(socket: SocketRef, Data(data): Data<Value>) {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing::subscriber::set_global_default(FmtSubscriber::default())?;
 
-    let (layer, io) = SocketIo::new_layer();
+    let (layer, io) = SocketIo::new_layer(None);
 
     io.ns("/", on_connect);
     io.ns("/custom", on_connect);

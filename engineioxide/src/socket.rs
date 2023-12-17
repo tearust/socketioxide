@@ -94,6 +94,8 @@ pub enum DisconnectReason {
     HeartbeatTimeout,
     /// The server is being closed
     ClosingServer,
+    /// Relay message through channel failed
+    RelayError,
 }
 
 /// Convert an [`Error`] to a [`DisconnectReason`] if possible

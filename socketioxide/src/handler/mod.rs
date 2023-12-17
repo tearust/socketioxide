@@ -10,7 +10,6 @@ pub(crate) use connect::BoxedConnectHandler;
 pub use connect::{ConnectHandler, FromConnectParts};
 pub(crate) use disconnect::BoxedDisconnectHandler;
 pub use disconnect::{DisconnectHandler, FromDisconnectParts};
-pub(crate) use message::BoxedMessageHandler;
 pub use message::{FromMessage, FromMessageParts, MessageHandler};
 /// A struct used to erase the type of a [`ConnectHandler`] or [`MessageHandler`] so it can be stored in a map
 pub(crate) struct MakeErasedHandler<H, A, T> {

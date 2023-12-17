@@ -83,21 +83,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4b46cbb362ab8752921c97e041f5e366ee6297bd428a31275b9fcf1e380f7299"
 
 [[package]]
-name = "angular-todomvc"
-version = "0.9.0"
-dependencies = [
- "axum",
- "serde",
- "serde_json",
- "socketioxide",
- "tokio",
- "tower",
- "tower-http",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
 name = "anstyle"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -186,20 +171,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "background-task"
-version = "0.9.0"
-dependencies = [
- "axum",
- "serde",
- "serde_json",
- "socketioxide",
- "tokio",
- "tower",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
 name = "backtrace"
 version = "0.3.69"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -219,22 +190,6 @@ name = "base64"
 version = "0.21.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "35636a1494ede3b646cc98f74f8e62c773a38a659ebc777a2cf26b9b74171df9"
-
-[[package]]
-name = "basic-crud-application"
-version = "0.9.0"
-dependencies = [
- "axum",
- "serde",
- "serde_json",
- "socketioxide",
- "tokio",
- "tower",
- "tower-http",
- "tracing",
- "tracing-subscriber",
- "uuid",
-]
 
 [[package]]
 name = "bitflags"
@@ -931,12 +886,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "http-range-header"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3ce4ef31cda248bbdb6e6820603b82dfcd9e833db65a43e997a0ccec777d11fe"
-
-[[package]]
 name = "httparse"
 version = "1.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -966,19 +915,6 @@ dependencies = [
  "pin-project-lite",
  "tokio",
  "want",
-]
-
-[[package]]
-name = "hyper-echo"
-version = "0.9.0"
-dependencies = [
- "hyper",
- "hyper-util",
- "serde_json",
- "socketioxide",
- "tokio",
- "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -1164,16 +1100,6 @@ name = "mime-infer"
 version = "3.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "91caed19dd472bc88bcd063571df18153529d49301a1918f4cf37f42332bee2e"
-dependencies = [
- "mime",
- "unicase",
-]
-
-[[package]]
-name = "mime_guess"
-version = "2.0.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4192263c238a5f0d0c6bfd21f336a313a4ce1c450542449ca191bb657b4642ef"
 dependencies = [
  "mime",
  "unicase",
@@ -1419,22 +1345,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5b40af805b3121feab8a3c29f04d8ad262fa8e0561883e7653e024ae4479e6de"
 
 [[package]]
-name = "private-messaging"
-version = "0.9.0"
-dependencies = [
- "axum",
- "serde",
- "serde_json",
- "socketioxide",
- "tokio",
- "tower",
- "tower-http",
- "tracing",
- "tracing-subscriber",
- "uuid",
-]
-
-[[package]]
 name = "proc-macro-crate"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1603,18 +1513,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32db48818b5f74931019bca36b61b1112acd42edb0e7c7c3cfe9bc15ea4f9fda"
 dependencies = [
  "salvo_core",
-]
-
-[[package]]
-name = "salvo-echo"
-version = "0.9.0"
-dependencies = [
- "salvo",
- "serde_json",
- "socketioxide",
- "tokio",
- "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -1825,21 +1723,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "socketio-chat"
-version = "0.9.0"
-dependencies = [
- "axum",
- "serde",
- "serde_json",
- "socketioxide",
- "tokio",
- "tower",
- "tower-http",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
 name = "socketioxide"
 version = "0.9.0"
 dependencies = [
@@ -1862,19 +1745,6 @@ dependencies = [
  "tokio",
  "tokio-tungstenite",
  "tower",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "socketioxide-e2e"
-version = "0.9.0"
-dependencies = [
- "hyper",
- "hyper-util",
- "serde_json",
- "socketioxide",
- "tokio",
  "tracing",
  "tracing-subscriber",
 ]
@@ -2104,31 +1974,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tower-http"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "09e12e6351354851911bdf8c2b8f2ab15050c567d70a8b9a37ae7b8301a4080d"
-dependencies = [
- "bitflags 2.4.1",
- "bytes",
- "futures-util",
- "http 1.0.0",
- "http-body",
- "http-body-util",
- "http-range-header",
- "httpdate",
- "mime",
- "mime_guess",
- "percent-encoding",
- "pin-project-lite",
- "tokio",
- "tokio-util",
- "tower-layer",
- "tower-service",
- "tracing",
-]
-
-[[package]]
 name = "tower-layer"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2297,16 +2142,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "09cc8ee72d2a9becf2f2febe0205bbed8fc6615b7cb429ad062dc7b7ddd036a9"
 
 [[package]]
-name = "uuid"
-version = "1.6.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5e395fcf16a7a3d8127ec99782007af141946b4795001f876d54fb0d55978560"
-dependencies = [
- "getrandom",
- "serde",
-]
-
-[[package]]
 name = "valuable"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2405,21 +2240,6 @@ checksum = "9b85cbef8c220a6abc02aefd892dfc0fc23afb1c6a426316ec33253a3877249b"
 dependencies = [
  "js-sys",
  "wasm-bindgen",
-]
-
-[[package]]
-name = "whiteboard"
-version = "0.9.0"
-dependencies = [
- "axum",
- "serde",
- "serde_json",
- "socketioxide",
- "tokio",
- "tower",
- "tower-http",
- "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]

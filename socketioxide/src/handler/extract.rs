@@ -79,7 +79,7 @@
 //! fn handler(user_id: UserId) {
 //!     println!("User id: {}", user_id.0);
 //! }
-//! let (svc, io) = SocketIo::new_svc();
+//! let (svc, io) = SocketIo::new_svc(None);
 //! io.ns("/", handler);
 //! // Use the service with your favorite http server
 use std::convert::Infallible;
@@ -384,7 +384,7 @@ mod state_extract {
     ///         self.user_cnt.fetch_sub(1, Ordering::SeqCst);
     ///     }
     /// }
-    /// let (_, io) = SocketIo::builder().with_state(MyAppData::default()).build_svc();
+    /// let (_, io) = SocketIo::builder().with_state(MyAppData::default()).build_svc(None);
     /// io.ns("/", |socket: SocketRef, state: State<MyAppData>| {
     ///     state.add_user();
     ///     println!("User count: {}", state.user_cnt.load(Ordering::SeqCst));

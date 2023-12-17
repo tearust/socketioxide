@@ -16,7 +16,9 @@ use hyper_util::{
     rt::{TokioExecutor, TokioIo},
 };
 use serde::{Deserialize, Serialize};
-use socketioxide::{adapter::LocalAdapter, service::SocketIoService, SocketIo};
+use socketioxide::{
+    adapter::LocalAdapter, handler::message::MessageSender, service::SocketIoService, SocketIo,
+};
 use tokio::net::{TcpListener, TcpStream};
 use tokio_tungstenite::{tungstenite::Message, MaybeTlsStream, WebSocketStream};
 /// An OpenPacket is used to initiate a connection
@@ -98,23 +100,30 @@ pub async fn create_ws_connection(port: u16) -> WebSocketStream<MaybeTlsStream<T
     ws
 }
 
-pub async fn create_server_with_state<T: Send + Sync + 'static>(port: u16, state: T) -> SocketIo {
+pub async fn create_server_with_state<T: Send + Sync + 'static>(
+    port: u16,
+    state: T,
+    message_sender: Option<MessageSender<LocalAdapter>>,
+) -> SocketIo {
     let (svc, io) = SocketIo::builder()
         .ping_interval(Duration::from_millis(300))
         .ping_timeout(Duration::from_millis(200))
         .with_state(state)
-        .build_svc();
+        .build_svc(message_sender);
 
     spawn_server(port, svc).await;
 
     io
 }
 
-pub async fn create_server(port: u16) -> SocketIo {
+pub async fn create_server(
+    port: u16,
+    message_sender: Option<MessageSender<LocalAdapter>>,
+) -> SocketIo {
     let (svc, io) = SocketIo::builder()
         .ping_interval(Duration::from_millis(300))
         .ping_timeout(Duration::from_millis(200))
-        .build_svc();
+        .build_svc(message_sender);
 
     spawn_server(port, svc).await;
     io

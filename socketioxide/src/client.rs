@@ -10,6 +10,7 @@ use engineioxide::sid::Sid;
 use tokio::sync::oneshot;
 
 use crate::adapter::Adapter;
+use crate::handler::message::MessageSender;
 use crate::handler::ConnectHandler;
 use crate::ProtocolVersion;
 use crate::{
@@ -23,15 +24,17 @@ use crate::{
 pub struct Client<A: Adapter> {
     pub(crate) config: Arc<SocketIoConfig>,
     ns: RwLock<HashMap<Cow<'static, str>, Arc<Namespace<A>>>>,
+    message_sender: Option<MessageSender<A>>,
 }
 
 impl<A: Adapter> Client<A> {
-    pub fn new(config: Arc<SocketIoConfig>) -> Self {
+    pub fn new(config: Arc<SocketIoConfig>, message_sender: Option<MessageSender<A>>) -> Self {
         #[cfg(feature = "state")]
         crate::state::freeze_state();
 
         Self {
             config,
+            message_sender,
             ns: RwLock::new(HashMap::new()),
         }
     }
@@ -42,13 +45,20 @@ impl<A: Adapter> Client<A> {
         auth: Option<String>,
         ns_path: &str,
         esocket: &Arc<engineioxide::Socket<SocketData>>,
+        message_sender: Option<MessageSender<A>>,
     ) -> Result<(), Error> {
         #[cfg(feature = "tracing")]
         tracing::debug!("auth: {:?}", auth);
 
         let sid = esocket.id;
         if let Some(ns) = self.get_ns(ns_path) {
-            ns.connect(sid, esocket.clone(), auth, self.config.clone())?;
+            ns.connect(
+                sid,
+                esocket.clone(),
+                auth,
+                self.config.clone(),
+                message_sender,
+            )?;
 
             // cancel the connect timeout task for v5
             if let Some(tx) = esocket.data.connect_recv_tx.lock().unwrap().take() {
@@ -162,7 +172,8 @@ impl<A: Adapter> EngineIoHandler for Client<A> {
         if protocol == ProtocolVersion::V4 {
             #[cfg(feature = "tracing")]
             tracing::debug!("connecting to default namespace for v4");
-            self.sock_connect(None, "/", &socket).unwrap();
+            self.sock_connect(None, "/", &socket, self.message_sender.clone())
+                .unwrap();
         }
 
         if protocol == ProtocolVersion::V5 {
@@ -211,7 +222,7 @@ impl<A: Adapter> EngineIoHandler for Client<A> {
 
         let res: Result<(), Error> = match packet.inner {
             PacketData::Connect(auth) => self
-                .sock_connect(auth, &packet.ns, &socket)
+                .sock_connect(auth, &packet.ns, &socket, self.message_sender.clone())
                 .map_err(Into::into),
             PacketData::BinaryEvent(_, _, _) | PacketData::BinaryAck(_, _) => {
                 // Cache-in the socket data until all the binary payloads are received

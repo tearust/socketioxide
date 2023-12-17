@@ -12,7 +12,7 @@ use crate::{
     adapter::{Adapter, LocalAdapter},
     client::Client,
     extract::SocketRef,
-    handler::ConnectHandler,
+    handler::{message::MessageSender, ConnectHandler},
     layer::SocketIoLayer,
     operators::{Operators, RoomParam},
     service::SocketIoService,
@@ -176,10 +176,13 @@ impl<A: Adapter> SocketIoBuilder<A> {
     /// Builds a [`SocketIoLayer`] and a [`SocketIo`] instance
     ///
     /// The layer can be used as a tower layer
-    pub fn build_layer(mut self) -> (SocketIoLayer<A>, SocketIo<A>) {
+    pub fn build_layer(
+        mut self,
+        message_sender: Option<MessageSender<A>>,
+    ) -> (SocketIoLayer<A>, SocketIo<A>) {
         self.config.engine_config = self.engine_config_builder.build();
 
-        let (layer, client) = SocketIoLayer::from_config(Arc::new(self.config));
+        let (layer, client) = SocketIoLayer::from_config(Arc::new(self.config), message_sender);
         (layer, SocketIo(client))
     }
 
@@ -187,21 +190,32 @@ impl<A: Adapter> SocketIoBuilder<A> {
     ///
     /// This service will be a _standalone_ service that return a 404 error for every non-socket.io request
     /// It can be used as a hyper service
-    pub fn build_svc(mut self) -> (SocketIoService<NotFoundService>, SocketIo) {
+    pub fn build_svc(
+        mut self,
+        message_sender: Option<MessageSender<LocalAdapter>>,
+    ) -> (SocketIoService<NotFoundService>, SocketIo) {
         self.config.engine_config = self.engine_config_builder.build();
 
-        let (svc, client) =
-            SocketIoService::with_config_inner(NotFoundService, Arc::new(self.config));
+        let (svc, client) = SocketIoService::with_config_inner(
+            NotFoundService,
+            Arc::new(self.config),
+            message_sender,
+        );
         (svc, SocketIo(client))
     }
 
     /// Builds a [`SocketIoService`] and a [`SocketIo`] instance with an inner service
     ///
     /// It can be used as a hyper service
-    pub fn build_with_inner_svc<S: Clone>(mut self, svc: S) -> (SocketIoService<S>, SocketIo) {
+    pub fn build_with_inner_svc<S: Clone>(
+        mut self,
+        svc: S,
+        message_sender: Option<MessageSender<LocalAdapter>>,
+    ) -> (SocketIoService<S>, SocketIo) {
         self.config.engine_config = self.engine_config_builder.build();
 
-        let (svc, client) = SocketIoService::with_config_inner(svc, Arc::new(self.config));
+        let (svc, client) =
+            SocketIoService::with_config_inner(svc, Arc::new(self.config), message_sender);
         (svc, SocketIo(client))
     }
 }
@@ -228,22 +242,29 @@ impl SocketIo<LocalAdapter> {
     /// This service will be a _standalone_ service that return a 404 error for every non-socket.io request.
     /// It can be used as a [`Service`](tower::Service) (see hyper example)
     #[inline(always)]
-    pub fn new_svc() -> (SocketIoService<NotFoundService>, SocketIo) {
-        Self::builder().build_svc()
+    pub fn new_svc(
+        message_sender: Option<MessageSender<LocalAdapter>>,
+    ) -> (SocketIoService<NotFoundService>, SocketIo) {
+        Self::builder().build_svc(message_sender)
     }
 
     /// Creates a new [`SocketIoService`] and a [`SocketIo`] instance with a default config.
     /// It can be used as a [`Service`](tower::Service) with an inner service
     #[inline(always)]
-    pub fn new_inner_svc<S: Clone>(svc: S) -> (SocketIoService<S>, SocketIo) {
-        Self::builder().build_with_inner_svc(svc)
+    pub fn new_inner_svc<S: Clone>(
+        svc: S,
+        message_sender: Option<MessageSender<LocalAdapter>>,
+    ) -> (SocketIoService<S>, SocketIo) {
+        Self::builder().build_with_inner_svc(svc, message_sender)
     }
 
     /// Builds a [`SocketIoLayer`] and a [`SocketIo`] instance with a default config.
     /// It can be used as a tower [`Layer`](tower::layer::Layer) (see axum example)
     #[inline(always)]
-    pub fn new_layer() -> (SocketIoLayer, SocketIo) {
-        Self::builder().build_layer()
+    pub fn new_layer(
+        message_sender: Option<MessageSender<LocalAdapter>>,
+    ) -> (SocketIoLayer, SocketIo) {
+        Self::builder().build_layer(message_sender)
     }
 }
 
@@ -258,81 +279,6 @@ impl<A: Adapter> SocketIo<A> {
     ///
     /// * See the [`connect`](crate::handler::connect) module doc for more details on connect handler.
     /// * See the [`extract`](crate::extract) module doc for more details on available extractors.
-    /// #### Simple example with a sync closure:
-    /// ```
-    /// # use socketioxide::{SocketIo, extract::*};
-    /// # use serde::{Serialize, Deserialize};
-    /// #[derive(Debug, Serialize, Deserialize)]
-    /// struct MyData {
-    ///     name: String,
-    ///     age: u8,
-    /// }
-    ///
-    /// let (_, io) = SocketIo::new_svc();
-    /// io.ns("/", |socket: SocketRef| {
-    ///     // Register a handler for the "test" event and extract the data as a `MyData` struct
-    ///     // With the Data extractor, the handler is called only if the data can be deserialized as a `MyData` struct
-    ///     // If you want to manage errors yourself you can use the TryData extractor
-    ///     socket.on("test", |socket: SocketRef, Data::<MyData>(data)| {
-    ///         println!("Received a test message {:?}", data);
-    ///         socket.emit("test-test", MyData { name: "Test".to_string(), age: 8 }).ok(); // Emit a message to the client
-    ///     });
-    /// });
-    ///
-    /// ```
-    ///
-    /// #### Example with a closure and an acknowledgement + binary data:
-    /// ```
-    /// # use socketioxide::{SocketIo, extract::*};
-    /// # use serde_json::Value;
-    /// # use serde::{Serialize, Deserialize};
-    /// #[derive(Debug, Serialize, Deserialize)]
-    /// struct MyData {
-    ///     name: String,
-    ///     age: u8,
-    /// }
-    ///
-    /// let (_, io) = SocketIo::new_svc();
-    /// io.ns("/", |socket: SocketRef| {
-    ///     // Register an async handler for the "test" event and extract the data as a `MyData` struct
-    ///     // Extract the binary payload as a `Vec<Vec<u8>>` with the Bin extractor.
-    ///     // It should be the last extractor because it consumes the request
-    ///     socket.on("test", |socket: SocketRef, Data::<MyData>(data), ack: AckSender, Bin(bin)| async move {
-    ///         println!("Received a test message {:?}", data);
-    ///         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-    ///         ack.bin(bin).send(data).ok(); // The data received is sent back to the client through the ack
-    ///         socket.emit("test-test", MyData { name: "Test".to_string(), age: 8 }).ok(); // Emit a message to the client
-    ///     });
-    /// });
-    /// ```
-    /// #### Simple example with a closure:
-    /// ```
-    /// # use socketioxide::{SocketIo, extract::{SocketRef, Data}};
-    /// # use serde::{Serialize, Deserialize};
-    /// #[derive(Debug, Deserialize)]
-    /// struct MyAuthData {
-    ///     token: String,
-    /// }
-    /// #[derive(Debug, Serialize, Deserialize)]
-    /// struct MyData {
-    ///     name: String,
-    ///     age: u8,
-    /// }
-    ///
-    /// let (_, io) = SocketIo::new_svc();
-    /// io.ns("/", |socket: SocketRef, Data(auth): Data<MyAuthData>| {
-    ///     if auth.token.is_empty() {
-    ///         println!("Invalid token, disconnecting");
-    ///         socket.disconnect().ok();
-    ///         return;
-    ///     }
-    ///     socket.on("test", |socket: SocketRef, Data::<MyData>(data)| async move {
-    ///         println!("Received a test message {:?}", data);
-    ///         socket.emit("test-test", MyData { name: "Test".to_string(), age: 8 }).ok(); // Emit a message to the client
-    ///     });
-    /// });
-    ///
-    /// ```
     #[inline]
     pub fn ns<C, T>(&self, path: impl Into<Cow<'static, str>>, callback: C)
     where
@@ -363,7 +309,7 @@ impl<A: Adapter> SocketIo<A> {
     /// ## Example
     /// ```
     /// # use socketioxide::{SocketIo, extract::SocketRef};
-    /// let (_, io) = SocketIo::new_svc();
+    /// let (_, io) = SocketIo::new_svc(None);
     /// io.ns("custom_ns", |socket: SocketRef| {
     ///     println!("Socket connected on /custom_ns namespace with id: {}", socket.id);
     /// });
@@ -389,7 +335,7 @@ impl<A: Adapter> SocketIo<A> {
     /// ## Example
     /// ```
     /// # use socketioxide::{SocketIo, extract::SocketRef};
-    /// let (_, io) = SocketIo::new_svc();
+    /// let (_, io) = SocketIo::new_svc(None);
     /// io.ns("/", |socket: SocketRef| {
     ///     println!("Socket connected on / namespace with id: {}", socket.id);
     /// });
@@ -417,7 +363,7 @@ impl<A: Adapter> SocketIo<A> {
     /// ## Example
     /// ```
     /// # use socketioxide::{SocketIo, extract::SocketRef};
-    /// let (_, io) = SocketIo::new_svc();
+    /// let (_, io) = SocketIo::new_svc(None);
     /// io.ns("/", |socket: SocketRef| {
     ///     println!("Socket connected on / namespace with id: {}", socket.id);
     /// });
@@ -439,21 +385,6 @@ impl<A: Adapter> SocketIo<A> {
     ///
     /// ## Panics
     /// If the **default namespace "/" is not found** this fn will panic!
-    ///
-    /// ## Example
-    /// ```
-    /// # use socketioxide::{SocketIo, extract::SocketRef};
-    /// let (_, io) = SocketIo::new_svc();
-    /// io.ns("/", |socket: SocketRef| {
-    ///     println!("Socket connected on / namespace with id: {}", socket.id);
-    ///     socket.on("register1", |socket: SocketRef| {
-    ///         socket.join("room1");
-    ///     });
-    ///     socket.on("register2", |socket: SocketRef| {
-    ///         socket.join("room2");
-    ///     });
-    /// });
-    ///
     ///
     /// // Later in your code you can select all sockets in the root namespace that are not in the room1
     /// // and for example show all sockets connected to it
@@ -477,7 +408,7 @@ impl<A: Adapter> SocketIo<A> {
     /// ## Example
     /// ```
     /// # use socketioxide::{SocketIo, extract::SocketRef};
-    /// let (_, io) = SocketIo::new_svc();
+    /// let (_, io) = SocketIo::new_svc(None);
     /// io.ns("/", |socket: SocketRef| {
     ///     println!("Socket connected on / namespace with id: {}", socket.id);
     /// });
@@ -506,7 +437,7 @@ impl<A: Adapter> SocketIo<A> {
     /// # use futures::stream::StreamExt;
     /// # use std::time::Duration;
     /// # use serde_json::Value;
-    /// let (_, io) = SocketIo::new_svc();
+    /// let (_, io) = SocketIo::new_svc(None);
     /// io.ns("/", |socket: SocketRef| {
     ///     println!("Socket connected on / namespace with id: {}", socket.id);
     /// });
@@ -541,7 +472,7 @@ impl<A: Adapter> SocketIo<A> {
     /// ```
     /// # use socketioxide::{SocketIo, extract::SocketRef};
     /// # use serde_json::Value;
-    /// let (_, io) = SocketIo::new_svc();
+    /// let (_, io) = SocketIo::new_svc(None);
     /// io.ns("/", |socket: SocketRef| {
     ///     println!("Socket connected on / namespace with id: {}", socket.id);
     /// });
@@ -569,7 +500,7 @@ impl<A: Adapter> SocketIo<A> {
     /// ```
     /// # use socketioxide::{SocketIo, extract::SocketRef};
     /// # use serde_json::Value;
-    /// let (_, io) = SocketIo::new_svc();
+    /// let (_, io) = SocketIo::new_svc(None);
     /// io.ns("/", |socket: SocketRef| {
     ///     println!("Socket connected on / namespace with id: {}", socket.id);
     /// });
@@ -603,7 +534,7 @@ impl<A: Adapter> SocketIo<A> {
     /// # use socketioxide::{SocketIo, extract::SocketRef};
     /// # use futures::stream::StreamExt;
     /// # use serde_json::Value;
-    /// let (_, io) = SocketIo::new_svc();
+    /// let (_, io) = SocketIo::new_svc(None);
     /// io.ns("/", |socket: SocketRef| {
     ///     println!("Socket connected on / namespace with id: {}", socket.id);
     /// });
@@ -641,7 +572,7 @@ impl<A: Adapter> SocketIo<A> {
     /// ```
     /// # use socketioxide::{SocketIo, extract::SocketRef};
     /// # use serde_json::Value;
-    /// let (_, io) = SocketIo::new_svc();
+    /// let (_, io) = SocketIo::new_svc(None);
     /// io.ns("/", |socket: SocketRef| {
     ///     println!("Socket connected on / namespace with id: {}", socket.id);
     /// });
@@ -667,7 +598,7 @@ impl<A: Adapter> SocketIo<A> {
     /// ## Example
     /// ```
     /// # use socketioxide::{SocketIo, extract::SocketRef};
-    /// let (_, io) = SocketIo::new_svc();
+    /// let (_, io) = SocketIo::new_svc(None);
     /// io.ns("/", |socket: SocketRef| {
     ///     println!("Socket connected on / namespace with id: {}", socket.id);
     /// });
@@ -689,7 +620,7 @@ impl<A: Adapter> SocketIo<A> {
     /// ### Example
     /// ```
     /// # use socketioxide::{SocketIo, extract::SocketRef};
-    /// let (_, io) = SocketIo::new_svc();
+    /// let (_, io) = SocketIo::new_svc(None);
     /// io.ns("/", |socket: SocketRef| {
     ///     println!("Socket connected on / namespace with id: {}", socket.id);
     /// });
@@ -711,7 +642,7 @@ impl<A: Adapter> SocketIo<A> {
     /// ### Example
     /// ```
     /// # use socketioxide::{SocketIo, extract::SocketRef};
-    /// let (_, io) = SocketIo::new_svc();
+    /// let (_, io) = SocketIo::new_svc(None);
     /// io.ns("/", |socket: SocketRef| {
     ///     println!("Socket connected on / namespace with id: {}", socket.id);
     /// });
@@ -754,7 +685,7 @@ mod tests {
 
     #[test]
     fn get_default_op() {
-        let (_, io) = SocketIo::builder().build_svc();
+        let (_, io) = SocketIo::builder().build_svc(None);
         io.ns("/", || {});
         let _ = io.get_default_op();
     }
@@ -762,13 +693,13 @@ mod tests {
     #[test]
     #[should_panic(expected = "default namespace not found")]
     fn get_default_op_panic() {
-        let (_, io) = SocketIo::builder().build_svc();
+        let (_, io) = SocketIo::builder().build_svc(None);
         let _ = io.get_default_op();
     }
 
     #[test]
     fn get_op() {
-        let (_, io) = SocketIo::builder().build_svc();
+        let (_, io) = SocketIo::builder().build_svc(None);
         io.ns("test", || {});
         assert!(io.get_op("test").is_some());
         assert!(io.get_op("test2").is_none());
@@ -776,7 +707,7 @@ mod tests {
 
     #[test]
     fn every_op_should_be_broadcast() {
-        let (_, io) = SocketIo::builder().build_svc();
+        let (_, io) = SocketIo::builder().build_svc(None);
         io.ns("/", || {});
         assert!(io.get_default_op().is_broadcast());
         assert!(io.to("room1").is_broadcast());
