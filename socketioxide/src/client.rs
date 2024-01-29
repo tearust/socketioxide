@@ -1,17 +1,20 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, Mutex, OnceLock, RwLock};
 
 use engineioxide::handler::EngineIoHandler;
 use engineioxide::socket::{DisconnectReason as EIoDisconnectReason, Socket as EIoSocket};
 use futures::TryFutureExt;
 
 use engineioxide::sid::Sid;
+use serde_json::Value;
 use tokio::sync::oneshot;
 
-use crate::adapter::Adapter;
-use crate::handler::message::MessageSender;
+use crate::adapter::LocalAdapter;
+use crate::extract::{Data, SocketRef};
+use crate::handler::message::{GeneralMessage, MessageSender};
 use crate::handler::ConnectHandler;
+use crate::socket::try_send_message;
 use crate::ProtocolVersion;
 use crate::{
     errors::Error,
@@ -20,21 +23,64 @@ use crate::{
     SocketIoConfig,
 };
 
-#[derive(Debug)]
-pub struct Client<A: Adapter> {
-    pub(crate) config: Arc<SocketIoConfig>,
-    ns: RwLock<HashMap<Cow<'static, str>, Arc<Namespace<A>>>>,
-    message_sender: Option<MessageSender<A>>,
+static MESSAGE_SENDER: OnceLock<MessageSender<LocalAdapter>> = OnceLock::new();
+
+const CONNECT_KEY: &str = "connect";
+const DISCONNECT_KEY: &str = "disconnect";
+
+#[allow(unused_variables)]
+fn on_connect(socket: SocketRef<LocalAdapter>, Data(data): Data<Value>) {
+    let socket = socket.take();
+    if let Some(sender) = MESSAGE_SENDER.get() {
+        if let Err(e) = try_send_message(
+            GeneralMessage {
+                key: CONNECT_KEY.into(),
+                value: data,
+                socket: Some(socket.clone()),
+                params: Default::default(),
+                ack_id: None,
+            },
+            sender,
+        ) {
+            #[cfg(feature = "tracing")]
+            tracing::warn!("error while sending connect message: {}", e);
+        }
+    }
+
+    socket.on_disconnect(|s: SocketRef<LocalAdapter>| {
+        if let Some(sender) = MESSAGE_SENDER.get() {
+            if let Err(e) = try_send_message(
+                GeneralMessage {
+                    key: DISCONNECT_KEY.into(),
+                    value: Default::default(),
+                    socket: None,
+                    params: Default::default(),
+                    ack_id: None,
+                },
+                sender,
+            ) {
+                #[cfg(feature = "tracing")]
+                tracing::warn!("error while sending disconnect message: {}", e);
+            }
+        }
+    });
 }
 
-impl<A: Adapter> Client<A> {
-    pub fn new(config: Arc<SocketIoConfig>, message_sender: Option<MessageSender<A>>) -> Self {
+#[derive(Debug)]
+pub struct Client {
+    pub(crate) config: Arc<SocketIoConfig>,
+    ns: RwLock<HashMap<Cow<'static, str>, Arc<Namespace<LocalAdapter>>>>,
+}
+
+impl Client {
+    pub fn new(config: Arc<SocketIoConfig>, message_sender: MessageSender<LocalAdapter>) -> Self {
         #[cfg(feature = "state")]
         crate::state::freeze_state();
 
+        MESSAGE_SENDER.get_or_init(|| message_sender);
+
         Self {
             config,
-            message_sender,
             ns: RwLock::new(HashMap::new()),
         }
     }
@@ -45,42 +91,32 @@ impl<A: Adapter> Client<A> {
         auth: Option<String>,
         ns_path: &str,
         esocket: &Arc<engineioxide::Socket<SocketData>>,
-        message_sender: Option<MessageSender<A>>,
     ) -> Result<(), Error> {
         #[cfg(feature = "tracing")]
         tracing::debug!("auth: {:?}", auth);
 
-        let sid = esocket.id;
-        if let Some(ns) = self.get_ns(ns_path) {
-            ns.connect(
-                sid,
-                esocket.clone(),
-                auth,
-                self.config.clone(),
-                message_sender,
-            )?;
-
-            // cancel the connect timeout task for v5
-            if let Some(tx) = esocket.data.connect_recv_tx.lock().unwrap().take() {
-                tx.send(()).unwrap();
-            }
-
-            Ok(())
-        } else if ProtocolVersion::from(esocket.protocol) == ProtocolVersion::V4 && ns_path == "/" {
-            #[cfg(feature = "tracing")]
-            tracing::error!(
-                "the root namespace \"/\" must be defined before any connection for protocol V4 (legacy)!"
-            );
-            esocket.close(EIoDisconnectReason::TransportClose);
-            Ok(())
+        let ns = if let Some(ns) = self.get_ns(ns_path) {
+            ns
         } else {
-            let packet = Packet::invalid_namespace(ns_path).try_into().unwrap();
-            if let Err(_e) = esocket.emit(packet) {
-                #[cfg(feature = "tracing")]
-                tracing::error!("error while sending invalid namespace packet: {}", _e);
-            }
-            Ok(())
+            self.add_ns(ns_path.to_string().into(), on_connect);
+            self.get_ns(ns_path).unwrap()
+        };
+
+        let sid = esocket.id;
+        ns.connect(
+            sid,
+            esocket.clone(),
+            auth,
+            self.config.clone(),
+            MESSAGE_SENDER.get().cloned(),
+        )?;
+
+        // cancel the connect timeout task for v5
+        if let Some(tx) = esocket.data.connect_recv_tx.lock().unwrap().take() {
+            tx.send(()).unwrap();
         }
+
+        Ok(())
     }
 
     /// Propagate a packet to a its target namespace
@@ -114,7 +150,7 @@ impl<A: Adapter> Client<A> {
     /// Adds a new namespace handler
     pub fn add_ns<C, T>(&self, path: Cow<'static, str>, callback: C)
     where
-        C: ConnectHandler<A, T>,
+        C: ConnectHandler<LocalAdapter, T>,
         T: Send + Sync + 'static,
     {
         #[cfg(feature = "tracing")]
@@ -130,7 +166,7 @@ impl<A: Adapter> Client<A> {
         self.ns.write().unwrap().remove(path);
     }
 
-    pub fn get_ns(&self, path: &str) -> Option<Arc<Namespace<A>>> {
+    pub fn get_ns(&self, path: &str) -> Option<Arc<Namespace<LocalAdapter>>> {
         self.ns.read().unwrap().get(path).cloned()
     }
 
@@ -156,7 +192,7 @@ pub struct SocketData {
     pub connect_recv_tx: Mutex<Option<oneshot::Sender<()>>>,
 }
 
-impl<A: Adapter> EngineIoHandler for Client<A> {
+impl EngineIoHandler for Client {
     type Data = SocketData;
 
     #[cfg_attr(feature = "tracing", tracing::instrument(skip(self, socket), fields(sid = socket.id.to_string())))]
@@ -172,8 +208,7 @@ impl<A: Adapter> EngineIoHandler for Client<A> {
         if protocol == ProtocolVersion::V4 {
             #[cfg(feature = "tracing")]
             tracing::debug!("connecting to default namespace for v4");
-            self.sock_connect(None, "/", &socket, self.message_sender.clone())
-                .unwrap();
+            self.sock_connect(None, "/", &socket).unwrap();
         }
 
         if protocol == ProtocolVersion::V5 {
@@ -222,7 +257,7 @@ impl<A: Adapter> EngineIoHandler for Client<A> {
 
         let res: Result<(), Error> = match packet.inner {
             PacketData::Connect(auth) => self
-                .sock_connect(auth, &packet.ns, &socket, self.message_sender.clone())
+                .sock_connect(auth, &packet.ns, &socket)
                 .map_err(Into::into),
             PacketData::BinaryEvent(_, _, _) | PacketData::BinaryAck(_, _) => {
                 // Cache-in the socket data until all the binary payloads are received

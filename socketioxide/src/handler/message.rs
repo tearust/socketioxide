@@ -80,7 +80,7 @@ pub struct GeneralMessage<A: Adapter> {
     /// The key of the socket that received the message
     pub key: String,
     /// The socket that received the message
-    pub socket: Arc<Socket<A>>,
+    pub socket: Option<Arc<Socket<A>>>,
     /// The message
     pub value: Value,
     /// The binary data

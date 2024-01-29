@@ -11,11 +11,15 @@ use tracing::info;
 use tracing_subscriber::FmtSubscriber;
 
 fn on_connect(socket: SocketRef, Data(data): Data<Value>) {
-    info!("Socket.IO connected: {:?} {:?}", socket.ns(), socket.id);
+    info!(
+        "=== Custom Socket.IO connected: {:?} {:?}",
+        socket.ns(),
+        socket.id
+    );
     socket.emit("auth", data).ok();
 
     socket.on_disconnect(|s: SocketRef| {
-        info!("Socket.IO disconnected: {} {}", s.id, s.ns());
+        info!("=== Custom Socket.IO disconnected: {} {}", s.id, s.ns());
     });
 }
 
@@ -33,11 +37,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing::subscriber::set_global_default(FmtSubscriber::default())?;
 
     let (sender, receiver) = channel(10);
-    let (layer, io) = SocketIo::new_layer(Some(sender));
+    let (layer, io) = SocketIo::new_layer(sender);
     tokio::spawn(relay_loop(receiver));
 
     io.ns("/", on_connect);
-    io.ns("/custom", on_connect);
 
     let app = axum::Router::new()
         .route("/", get(|| async { "Hello, World!" }))

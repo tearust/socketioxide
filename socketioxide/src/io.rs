@@ -1,4 +1,4 @@
-use std::{borrow::Cow, sync::Arc, time::Duration};
+use std::{borrow::Cow, convert::Infallible, sync::Arc, time::Duration};
 
 use engineioxide::{
     config::{EngineIoConfig, EngineIoConfigBuilder},
@@ -178,8 +178,8 @@ impl<A: Adapter> SocketIoBuilder<A> {
     /// The layer can be used as a tower layer
     pub fn build_layer(
         mut self,
-        message_sender: Option<MessageSender<A>>,
-    ) -> (SocketIoLayer<A>, SocketIo<A>) {
+        message_sender: MessageSender<LocalAdapter>,
+    ) -> (SocketIoLayer, SocketIo) {
         self.config.engine_config = self.engine_config_builder.build();
 
         let (layer, client) = SocketIoLayer::from_config(Arc::new(self.config), message_sender);
@@ -192,7 +192,7 @@ impl<A: Adapter> SocketIoBuilder<A> {
     /// It can be used as a hyper service
     pub fn build_svc(
         mut self,
-        message_sender: Option<MessageSender<LocalAdapter>>,
+        message_sender: MessageSender<LocalAdapter>,
     ) -> (SocketIoService<NotFoundService>, SocketIo) {
         self.config.engine_config = self.engine_config_builder.build();
 
@@ -210,7 +210,7 @@ impl<A: Adapter> SocketIoBuilder<A> {
     pub fn build_with_inner_svc<S: Clone>(
         mut self,
         svc: S,
-        message_sender: Option<MessageSender<LocalAdapter>>,
+        message_sender: MessageSender<LocalAdapter>,
     ) -> (SocketIoService<S>, SocketIo) {
         self.config.engine_config = self.engine_config_builder.build();
 
@@ -229,9 +229,9 @@ impl Default for SocketIoBuilder {
 /// The [`SocketIo`] instance can be cheaply cloned and moved around everywhere in your program.
 /// It can be used as the main handle to access the whole socket.io context.
 #[derive(Debug)]
-pub struct SocketIo<A: Adapter = LocalAdapter>(Arc<Client<A>>);
+pub struct SocketIo(Arc<Client>);
 
-impl SocketIo<LocalAdapter> {
+impl SocketIo {
     /// Creates a new [`SocketIoBuilder`] with a default config
     #[inline(always)]
     pub fn builder() -> SocketIoBuilder {
@@ -243,7 +243,7 @@ impl SocketIo<LocalAdapter> {
     /// It can be used as a [`Service`](tower::Service) (see hyper example)
     #[inline(always)]
     pub fn new_svc(
-        message_sender: Option<MessageSender<LocalAdapter>>,
+        message_sender: MessageSender<LocalAdapter>,
     ) -> (SocketIoService<NotFoundService>, SocketIo) {
         Self::builder().build_svc(message_sender)
     }
@@ -253,7 +253,7 @@ impl SocketIo<LocalAdapter> {
     #[inline(always)]
     pub fn new_inner_svc<S: Clone>(
         svc: S,
-        message_sender: Option<MessageSender<LocalAdapter>>,
+        message_sender: MessageSender<LocalAdapter>,
     ) -> (SocketIoService<S>, SocketIo) {
         Self::builder().build_with_inner_svc(svc, message_sender)
     }
@@ -261,14 +261,12 @@ impl SocketIo<LocalAdapter> {
     /// Builds a [`SocketIoLayer`] and a [`SocketIo`] instance with a default config.
     /// It can be used as a tower [`Layer`](tower::layer::Layer) (see axum example)
     #[inline(always)]
-    pub fn new_layer(
-        message_sender: Option<MessageSender<LocalAdapter>>,
-    ) -> (SocketIoLayer, SocketIo) {
+    pub fn new_layer(message_sender: MessageSender<LocalAdapter>) -> (SocketIoLayer, SocketIo) {
         Self::builder().build_layer(message_sender)
     }
 }
 
-impl<A: Adapter> SocketIo<A> {
+impl SocketIo {
     /// Returns a reference to the [`SocketIoConfig`] used by this [`SocketIo`] instance
     #[inline]
     pub fn config(&self) -> &SocketIoConfig {
@@ -282,7 +280,7 @@ impl<A: Adapter> SocketIo<A> {
     #[inline]
     pub fn ns<C, T>(&self, path: impl Into<Cow<'static, str>>, callback: C)
     where
-        C: ConnectHandler<A, T>,
+        C: ConnectHandler<LocalAdapter, T>,
         T: Send + Sync + 'static,
     {
         self.0.add_ns(path.into(), callback);
@@ -321,7 +319,7 @@ impl<A: Adapter> SocketIo<A> {
     ///    println!("found socket on /custom_ns namespace with id: {}", socket.id);
     /// }
     #[inline]
-    pub fn of<'a>(&self, path: impl Into<&'a str>) -> Option<Operators<A>> {
+    pub fn of<'a>(&self, path: impl Into<&'a str>) -> Option<Operators<LocalAdapter>> {
         self.get_op(path.into())
     }
 
@@ -347,7 +345,7 @@ impl<A: Adapter> SocketIo<A> {
     ///   println!("found socket on / ns in room1 with id: {}", socket.id);
     /// }
     #[inline]
-    pub fn to(&self, rooms: impl RoomParam) -> Operators<A> {
+    pub fn to(&self, rooms: impl RoomParam) -> Operators<LocalAdapter> {
         self.get_default_op().to(rooms)
     }
 
@@ -375,7 +373,7 @@ impl<A: Adapter> SocketIo<A> {
     ///   println!("found socket on / ns in room1 with id: {}", socket.id);
     /// }
     #[inline]
-    pub fn within(&self, rooms: impl RoomParam) -> Operators<A> {
+    pub fn within(&self, rooms: impl RoomParam) -> Operators<LocalAdapter> {
         self.get_default_op().within(rooms)
     }
 
@@ -393,7 +391,7 @@ impl<A: Adapter> SocketIo<A> {
     ///   println!("found socket on / ns in room1 with id: {}", socket.id);
     /// }
     #[inline]
-    pub fn except(&self, rooms: impl RoomParam) -> Operators<A> {
+    pub fn except(&self, rooms: impl RoomParam) -> Operators<LocalAdapter> {
         self.get_default_op().except(rooms)
     }
 
@@ -420,7 +418,7 @@ impl<A: Adapter> SocketIo<A> {
     ///   println!("found socket on / ns in room1 with id: {}", socket.id);
     /// }
     #[inline]
-    pub fn local(&self) -> Operators<A> {
+    pub fn local(&self) -> Operators<LocalAdapter> {
         self.get_default_op().local()
     }
 
@@ -457,7 +455,7 @@ impl<A: Adapter> SocketIo<A> {
     ///      }
     ///   });
     #[inline]
-    pub fn timeout(&self, timeout: Duration) -> Operators<A> {
+    pub fn timeout(&self, timeout: Duration) -> Operators<LocalAdapter> {
         self.get_default_op().timeout(timeout)
     }
 
@@ -485,7 +483,7 @@ impl<A: Adapter> SocketIo<A> {
     ///   .bin(vec![vec![1, 2, 3, 4]])
     ///   .emit("test", ());
     #[inline]
-    pub fn bin(&self, binary: Vec<Vec<u8>>) -> Operators<A> {
+    pub fn bin(&self, binary: Vec<Vec<u8>>) -> Operators<LocalAdapter> {
         self.get_default_op().bin(binary)
     }
 
@@ -584,7 +582,7 @@ impl<A: Adapter> SocketIo<A> {
     ///   println!("found socket on / ns in room1 with id: {}", socket.id);
     /// }
     #[inline]
-    pub fn sockets(&self) -> Result<Vec<SocketRef<A>>, A::Error> {
+    pub fn sockets(&self) -> Result<Vec<SocketRef<LocalAdapter>>, Infallible> {
         self.get_default_op().sockets()
     }
 
@@ -628,7 +626,7 @@ impl<A: Adapter> SocketIo<A> {
     /// // Later in your code you can for example add all sockets on the root namespace to the room1 and room3
     /// io.join(["room1", "room3"]).unwrap();
     #[inline]
-    pub fn join(self, rooms: impl RoomParam) -> Result<(), A::Error> {
+    pub fn join(self, rooms: impl RoomParam) -> Result<(), Infallible> {
         self.get_default_op().join(rooms)
     }
 
@@ -650,13 +648,13 @@ impl<A: Adapter> SocketIo<A> {
     /// // Later in your code you can for example remove all sockets on the root namespace from the room1 and room3
     /// io.leave(["room1", "room3"]).unwrap();
     #[inline]
-    pub fn leave(self, rooms: impl RoomParam) -> Result<(), A::Error> {
+    pub fn leave(self, rooms: impl RoomParam) -> Result<(), Infallible> {
         self.get_default_op().leave(rooms)
     }
 
     /// Returns a new operator on the given namespace
     #[inline(always)]
-    fn get_op(&self, path: &str) -> Option<Operators<A>> {
+    fn get_op(&self, path: &str) -> Option<Operators<LocalAdapter>> {
         self.0
             .get_ns(path)
             .map(|ns| Operators::new(ns, None).broadcast())
@@ -668,12 +666,12 @@ impl<A: Adapter> SocketIo<A> {
     ///
     /// If the **default namespace "/" is not found** this fn will panic!
     #[inline(always)]
-    fn get_default_op(&self) -> Operators<A> {
+    fn get_default_op(&self) -> Operators<LocalAdapter> {
         self.get_op("/").expect("default namespace not found")
     }
 }
 
-impl<A: Adapter> Clone for SocketIo<A> {
+impl Clone for SocketIo {
     fn clone(&self) -> Self {
         Self(self.0.clone())
     }
@@ -685,7 +683,8 @@ mod tests {
 
     #[test]
     fn get_default_op() {
-        let (_, io) = SocketIo::builder().build_svc(None);
+        let (sender, _reciver) = tokio::sync::mpsc::channel(1);
+        let (_, io) = SocketIo::builder().build_svc(sender);
         io.ns("/", || {});
         let _ = io.get_default_op();
     }
@@ -693,13 +692,15 @@ mod tests {
     #[test]
     #[should_panic(expected = "default namespace not found")]
     fn get_default_op_panic() {
-        let (_, io) = SocketIo::builder().build_svc(None);
+        let (sender, _reciver) = tokio::sync::mpsc::channel(1);
+        let (_, io) = SocketIo::builder().build_svc(sender);
         let _ = io.get_default_op();
     }
 
     #[test]
     fn get_op() {
-        let (_, io) = SocketIo::builder().build_svc(None);
+        let (sender, _reciver) = tokio::sync::mpsc::channel(1);
+        let (_, io) = SocketIo::builder().build_svc(sender);
         io.ns("test", || {});
         assert!(io.get_op("test").is_some());
         assert!(io.get_op("test2").is_none());
@@ -707,7 +708,8 @@ mod tests {
 
     #[test]
     fn every_op_should_be_broadcast() {
-        let (_, io) = SocketIo::builder().build_svc(None);
+        let (sender, _reciver) = tokio::sync::mpsc::channel(1);
+        let (_, io) = SocketIo::builder().build_svc(sender);
         io.ns("/", || {});
         assert!(io.get_default_op().is_broadcast());
         assert!(io.to("room1").is_broadcast());

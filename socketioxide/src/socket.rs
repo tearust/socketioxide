@@ -431,10 +431,10 @@ impl<A: Adapter> Socket<A> {
 
     fn recv_event(self: Arc<Self>, e: &str, data: Value, ack: Option<i64>) -> Result<(), Error> {
         if let Some(sender) = self.message_sender.as_ref() {
-            self.try_send_message(
+            try_send_message(
                 GeneralMessage {
                     key: e.to_string(),
-                    socket: self.clone(),
+                    socket: Some(self.clone()),
                     value: data,
                     params: vec![],
                     ack_id: ack,
@@ -452,28 +452,16 @@ impl<A: Adapter> Socket<A> {
         ack: Option<i64>,
     ) -> Result<(), Error> {
         if let Some(sender) = self.message_sender.as_ref() {
-            self.try_send_message(
+            try_send_message(
                 GeneralMessage {
                     key: e.to_string(),
-                    socket: self.clone(),
+                    socket: Some(self.clone()),
                     value: packet.data,
                     params: packet.bin,
                     ack_id: ack,
                 },
                 sender,
             )?;
-        }
-        Ok(())
-    }
-
-    fn try_send_message(
-        &self,
-        msg: GeneralMessage<A>,
-        sender: &MessageSender<A>,
-    ) -> Result<(), Error> {
-        // TODO: use while let until timeout if channel is full
-        if let Err(e) = sender.try_send(msg) {
-            return Err(Error::MessageSendFailed(e.to_string()));
         }
         Ok(())
     }
@@ -524,4 +512,15 @@ impl<A: Adapter> Socket<A> {
             None,
         )
     }
+}
+
+pub(crate) fn try_send_message<A: Adapter>(
+    msg: GeneralMessage<A>,
+    sender: &MessageSender<A>,
+) -> Result<(), Error> {
+    // TODO: use while let until timeout if channel is full
+    if let Err(e) = sender.try_send(msg) {
+        return Err(Error::MessageSendFailed(e.to_string()));
+    }
+    Ok(())
 }

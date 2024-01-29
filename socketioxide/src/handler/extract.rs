@@ -227,6 +227,10 @@ impl<A: Adapter> SocketRef<A> {
     pub fn disconnect(self) -> Result<(), SendError> {
         self.0.disconnect()
     }
+
+    pub(crate) fn take(self) -> Arc<Socket<A>> {
+        self.0
+    }
 }
 
 /// An Extractor that returns the binary data of the message.

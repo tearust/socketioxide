@@ -103,7 +103,7 @@ pub async fn create_ws_connection(port: u16) -> WebSocketStream<MaybeTlsStream<T
 pub async fn create_server_with_state<T: Send + Sync + 'static>(
     port: u16,
     state: T,
-    message_sender: Option<MessageSender<LocalAdapter>>,
+    message_sender: MessageSender<LocalAdapter>,
 ) -> SocketIo {
     let (svc, io) = SocketIo::builder()
         .ping_interval(Duration::from_millis(300))
@@ -116,10 +116,7 @@ pub async fn create_server_with_state<T: Send + Sync + 'static>(
     io
 }
 
-pub async fn create_server(
-    port: u16,
-    message_sender: Option<MessageSender<LocalAdapter>>,
-) -> SocketIo {
+pub async fn create_server(port: u16, message_sender: MessageSender<LocalAdapter>) -> SocketIo {
     let (svc, io) = SocketIo::builder()
         .ping_interval(Duration::from_millis(300))
         .ping_timeout(Duration::from_millis(200))
@@ -129,7 +126,7 @@ pub async fn create_server(
     io
 }
 
-async fn spawn_server(port: u16, svc: SocketIoService<NotFoundService, LocalAdapter>) {
+async fn spawn_server(port: u16, svc: SocketIoService<NotFoundService>) {
     let addr = &SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), port);
     let listener = TcpListener::bind(&addr).await.unwrap();
     tokio::spawn(async move {
