@@ -433,6 +433,7 @@ impl<A: Adapter> Socket<A> {
         if let Some(sender) = self.message_sender.as_ref() {
             try_send_message(
                 GeneralMessage {
+                    path: self.ns().to_string(),
                     key: e.to_string(),
                     socket: Some(self.clone()),
                     value: data,
@@ -454,6 +455,7 @@ impl<A: Adapter> Socket<A> {
         if let Some(sender) = self.message_sender.as_ref() {
             try_send_message(
                 GeneralMessage {
+                    path: self.ns().to_string(),
                     key: e.to_string(),
                     socket: Some(self.clone()),
                     value: packet.data,

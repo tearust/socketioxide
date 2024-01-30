@@ -34,6 +34,7 @@ fn on_connect(socket: SocketRef<LocalAdapter>, Data(data): Data<Value>) {
     if let Some(sender) = MESSAGE_SENDER.get() {
         if let Err(e) = try_send_message(
             GeneralMessage {
+                path: socket.ns().to_string(),
                 key: CONNECT_KEY.into(),
                 value: data,
                 socket: Some(socket.clone()),
@@ -51,6 +52,7 @@ fn on_connect(socket: SocketRef<LocalAdapter>, Data(data): Data<Value>) {
         if let Some(sender) = MESSAGE_SENDER.get() {
             if let Err(e) = try_send_message(
                 GeneralMessage {
+                    path: s.ns().to_string(),
                     key: DISCONNECT_KEY.into(),
                     value: Default::default(),
                     socket: None,

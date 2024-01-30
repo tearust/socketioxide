@@ -77,6 +77,8 @@ pub type MessageSender<A> = tokio::sync::mpsc::Sender<GeneralMessage<A>>;
 /// General message to send through channel
 #[derive(Clone)]
 pub struct GeneralMessage<A: Adapter> {
+    /// The namespace of the socket that received the message
+    pub path: String,
     /// The key of the socket that received the message
     pub key: String,
     /// The socket that received the message

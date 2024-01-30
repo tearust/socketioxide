@@ -26,8 +26,8 @@ fn on_connect(socket: SocketRef, Data(data): Data<Value>) {
 async fn relay_loop(mut receiver: Receiver<GeneralMessage<LocalAdapter>>) {
     while let Some(msg) = receiver.recv().await {
         info!(
-            "Relaying message, key {}, value: {:?}, bin params: {:?}, ack id: {:?}",
-            msg.key, msg.value, msg.params, msg.ack_id
+            "Relaying message, path: {}, key {}, value: {:?}, bin params: {:?}, ack id: {:?}",
+            msg.path, msg.key, msg.value, msg.params, msg.ack_id
         );
     }
 }
